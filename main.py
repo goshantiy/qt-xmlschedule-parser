@@ -22,68 +22,61 @@ class MainWindow(QMainWindow):
         self.file_selector_layout.addWidget(self.file_selected_label)
         self.file_selector_layout.addWidget(self.file_selector_button)
 
-        self.type_selector = QComboBox()  # Для выбора типа элементов
-        self.types = ["Classes", "Subjects", "Rooms", "Chairs", "Teachers", "Scheds", "Study Types"]
-        self.type_selector.addItems(self.types)
-        self.layout.addWidget(self.type_selector)
+        # Добавляем макет и виджеты для расчета нагрузки
+        self.calc_load_layout = QHBoxLayout()  # Создаем новый горизонтальный макет для элементов управления расчетом нагрузки
+        self.layout.addLayout(self.calc_load_layout)  # Добавляем новый макет в основной вертикальный макет
 
-        self.item_selector = QComboBox()  # Для выбора конкретного элемента
-        self.layout.addWidget(self.item_selector)
-
-        self.tree_widget = QTreeWidget()
-        self.tree_widget.setHeaderLabels(["Tag", "Text", "Attribute"])
-        self.layout.addWidget(self.tree_widget)
+        self.calc_load_label = QLabel("Расчет нагрузки:")  # Метка для кнопки расчета
+        self.calc_load_button = QPushButton("Рассчитать нагрузку")  # Кнопка для инициации расчета
+        self.calc_load_button.clicked.connect(self.calculate_and_sort_load_by_department)  # Подключаем событие клика к методу расчета
+        self.calc_load_layout.addWidget(self.calc_load_label)  # Добавляем метку в макет
+        self.calc_load_layout.addWidget(self.calc_load_button)  # Добавляем кнопку в макет
 
         self.setWindowTitle("XML Viewer")
         self.filename = ""
-
-        self.type_selector.currentIndexChanged.connect(self.populate_item_selector)  # Заполнить при смене типа
-        self.item_selector.currentIndexChanged.connect(self.parse_selected_item)
 
     def select_file(self):
         options = QFileDialog.Options()
         self.filename, _ = QFileDialog.getOpenFileName(self, "Выбрать XML файл", "", "XML Files (*.xml)", options=options)
         if self.filename:
             self.file_selected_label.setText(f"Выбранный файл: {self.filename}")
-            self.populate_item_selector()  # Обновляем список элементов после выбора файла
+            self.parse_file()  
+            
+    def parse_file(self):
+        # Инициализация процессоров с содержимым файла
+        tree = ET.parse(self.filename)
+        root = tree.getroot()
+        self.class_processor = ClassProcessor(tree).parse_class_details()
+        self.teacher_processor = TeacherProcessor(tree).parse_teachers()
+        self.room_processor = RoomProcessor(tree).parse_rooms()
+        self.chair_processor = ChairProcessor(tree).parse_chairs()
+        self.sched_processor = SchedProcessor(tree).parse_scheds()
+        self.plan_processor = PlanProcessor(tree).parse_plans()
 
-    def populate_item_selector(self):
-        self.item_selector.clear()  # Очищаем список элементов перед заполнением
-        if not self.filename:
-            return  # Выход, если файл не выбран
+    def calculate_and_sort_load_by_department(self):
+        # Подсчет рабочих часов для каждого преподавателя
+        teacher_load = {}
+        for teacher in self.teacher_processor:
+            work_hours = sum(bin(int(day)).count('1') for day in teacher['work_hours'])
+            method_days = int(teacher['method_days'])
+            total_hours = work_hours + method_days
+            teacher_load[teacher['id']] = total_hours
 
-        selected_type = self.type_selector.currentText()
-        processor = None  # Инициализируем переменную processor
+        # Агрегация нагрузки по кафедрам
+        department_load = {}
+        for teacher_id, load in teacher_load.items():
+            department_id = self.teacher_processor.teachers[teacher_id]['department_id']
+            if department_id not in department_load:
+                department_load[department_id] = load
+            else:
+                department_load[department_id] += load
 
-        if selected_type == "Classes":
-            processor = ClassProcessor(self.filename)
-        elif selected_type == "Subjects":
-            processor = SubjectProcessor(self.filename)
-        elif selected_type == "Rooms":
-            processor = RoomProcessor(self.filename)
-        elif selected_type == "Chairs":
-            processor = ChairProcessor(self.filename)
-        elif selected_type == "Teachers":
-            processor = TeacherProcessor(self.filename)
-        elif selected_type == "Scheds":
-            processor = SchedProcessor(self.filename)
-        elif selected_type == "Study Types":
-            processor = StudyTypeProcessor(self.filename)
-        else:
-            return  # Необходимый обработчик не найден
+        # Сортировка и вывод данных
+        # Здесь можно добавить логику сортировки по убыванию, возрастанию или алфавиту
+        # Для демонстрации просто выведем данные без сортировки
+        for dept_id, load in department_load.items():
+            print(f"Кафедра {dept_id}: {load} часов")
 
-        # Теперь, когда у нас есть правильный процессор, можем получить имена элементов
-        if processor:
-            # В зависимости от типа процессора, вызываем нужный метод
-
-            item_names = processor.get_names()  # Вызываем метод для получения имен
-
-            for name in item_names:
-                self.item_selector.addItem(name)
-
-    def parse_selected_item(self):
-        # Этот метод можно реализовать для заполнения tree_widget данными выбранного элемента
-        pass
 
 if __name__ == "__main__":
     app = QApplication(sys.argv)
