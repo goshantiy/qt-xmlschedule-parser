@@ -2,10 +2,20 @@ import sys
 from PyQt5.QtWidgets import QApplication, QMainWindow, QTreeWidget, QTreeWidgetItem, QComboBox, QVBoxLayout, QWidget, QPushButton, QFileDialog, QHBoxLayout, QLabel
 import xml.etree.ElementTree as ET
 from xmlprocessing import *
+from loadtable import *
+from roomloadtable import *
+from roomavailabilitychecker import *
 
 class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
+
+        self.class_processor = {}
+        self.teacher_processor = {}
+        self.room_processor = {}
+        self.chair_processor = {}
+        self.sched_processor ={}
+        self.plan_processor = {}
 
         self.central_widget = QWidget()
         self.setCentralWidget(self.central_widget)
@@ -26,11 +36,23 @@ class MainWindow(QMainWindow):
         self.calc_load_layout = QHBoxLayout()  # Создаем новый горизонтальный макет для элементов управления расчетом нагрузки
         self.layout.addLayout(self.calc_load_layout)  # Добавляем новый макет в основной вертикальный макет
 
-        self.calc_load_label = QLabel("Расчет нагрузки:")  # Метка для кнопки расчета
+        self.calc_load_label = QLabel("Расчет нагрузки кафедр:")  # Метка для кнопки расчета
         self.calc_load_button = QPushButton("Рассчитать нагрузку")  # Кнопка для инициации расчета
+
         self.calc_load_button.clicked.connect(self.calculate_and_sort_load_by_department)  # Подключаем событие клика к методу расчета
+        self.calc_room_load_label = QLabel("Расчет аудиторий:")  # Метка для кнопки расчета
+        self.calc_room_load_button = QPushButton("Рассчитать аудитории")  # Кнопка для инициации расчета
+        self.calc_room_load_button.clicked.connect(self.get_rooms_load)  # Подключаем событие клика к методу расчета
+
+        self.calc_room_available_button = QPushButton("Доступность аудитории")  # Кнопка для инициации расчета
+        self.calc_room_available_button.clicked.connect(self.get_rooms_availability)  # Подключаем событие клика к методу расчета
+        
         self.calc_load_layout.addWidget(self.calc_load_label)  # Добавляем метку в макет
         self.calc_load_layout.addWidget(self.calc_load_button)  # Добавляем кнопку в макет
+        self.calc_load_layout.addWidget(self.calc_room_load_label)  # Добавляем метку в макет
+        self.calc_load_layout.addWidget(self.calc_room_load_button)  # Добавляем кнопку в макет
+        self.calc_load_layout.addWidget(self.calc_room_available_button)  # Добавляем кнопку в макет
+
 
         self.setWindowTitle("XML Viewer")
         self.filename = ""
@@ -56,27 +78,69 @@ class MainWindow(QMainWindow):
     def calculate_and_sort_load_by_department(self):
         # Подсчет рабочих часов для каждого преподавателя
         teacher_load = {}
-        for teacher in self.teacher_processor:
-            work_hours = sum(bin(int(day)).count('1') for day in teacher['work_hours'])
-            method_days = int(teacher['method_days'])
-            total_hours = work_hours + method_days
-            teacher_load[teacher['id']] = total_hours
+        for teacher_id, teacher_data in self.teacher_processor.items():
+            work_hours = sum(day['hours'] for day in teacher_data['work_hours'])
+            total_hours = work_hours + int(teacher_data['method_days'])
+            name_parts = [part for part in [teacher_data['surname'], teacher_data['first_name'], teacher_data['second_name']] if part]
+            full_name = ' '.join(name_parts)
+            teacher_load[teacher_id] = {
+                'total_hours': total_hours,
+                'name': full_name
+            }
 
-        # Агрегация нагрузки по кафедрам
+        # Агрегация нагрузки по кафедрам с информацией о преподавателях
         department_load = {}
-        for teacher_id, load in teacher_load.items():
-            department_id = self.teacher_processor.teachers[teacher_id]['department_id']
-            if department_id not in department_load:
-                department_load[department_id] = load
+        for teacher_id, load_info in teacher_load.items():
+            chair_id = self.teacher_processor[teacher_id]['chair_id']
+            if int(chair_id) < 0:
+                continue
+            chair_name = self.chair_processor.get(int(chair_id))  # Получаем название кафедры по ID
+            if chair_name is not None:
+                chair_name = chair_name['short_name']
+                if chair_name not in department_load:
+                    department_load[chair_name] = []
+                # Добавление информации о преподавателе в список кафедры
+                department_load[chair_name].append({
+                    'teacher_name': load_info['name'],
+                    'hours': load_info['total_hours']
+                })
             else:
-                department_load[department_id] += load
+                print(f"Ошибка: Не найдена кафедра с ID {chair_id}")
+        self.load_table = LoadTable(department_load)
+        self.load_table.show()
 
-        # Сортировка и вывод данных
-        # Здесь можно добавить логику сортировки по убыванию, возрастанию или алфавиту
-        # Для демонстрации просто выведем данные без сортировки
-        for dept_id, load in department_load.items():
-            print(f"Кафедра {dept_id}: {load} часов")
+    # Вывод данных
+        for chair_name, teachers in department_load.items():
+            print(f"Кафедра {chair_name}:")
+            for teacher in teachers:
+                print(f"{teacher['teacher_name']}: {teacher['hours']} часов")
 
+    def calc_rooms_load(self):
+        room_types = {}
+        for room_id, room_data in self.room_processor.items():
+            room_type = room_data.get('name')  # Предположим, что тип указан в данных
+            if room_type not in room_types:
+                room_types[room_type] = []
+            room_types[room_type].append(room_data)
+        for room_type, rooms in room_types.items():
+            print(f"Тип аудитории: {room_type}")
+            for room in rooms:
+                name = room['name']
+                capacity = room['capacity']
+                building = room['building']
+                chair_id = room['chair_id']
+                print(f"Название: {name}, Вместимость: {capacity}, Здание: {building}, Кафедра: {chair_id}")
+        return room_types
+    
+    def get_rooms_load(self):
+        room_types = self.calc_rooms_load()
+        self.room_load_table = RoomsLoadTable(room_types,self.chair_processor)
+        self.room_load_table.show()
+
+    def get_rooms_availability(self):
+        room_types = self.calc_rooms_load()
+        self.room_availability = RoomAvailabilityChecker(room_types, self.chair_processor)
+        self.room_availability.show()
 
 if __name__ == "__main__":
     app = QApplication(sys.argv)
