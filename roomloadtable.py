@@ -26,8 +26,8 @@ class RoomsLoadTable(QWidget):
     def populate_table(self):
         rows = sum(len(rooms) for rooms in self.room_types.values())
         self.tableWidget.setRowCount(rows)
-        self.tableWidget.setColumnCount(6)  # Добавлен столбец для нагрузки
-        self.tableWidget.setHorizontalHeaderLabels(['Тип аудитории', 'Название', 'Вместимость', 'Здание', 'Кафедра', 'Нагрузка(ч)'])
+        self.tableWidget.setColumnCount(5)  # Добавлен столбец для нагрузки
+        self.tableWidget.setHorizontalHeaderLabels(['Номер', 'Вместимость', 'Здание', 'Кафедра', 'Нагрузка(ч)'])
 
         current_row = 0
         for room_type, rooms in self.room_types.items():
@@ -36,12 +36,11 @@ class RoomsLoadTable(QWidget):
                 # Рассчитываем нагрузку по рабочим часам
                 work_hours_load = sum(sum(int(bit) for bit in day) for week in room['work_hours'].values() for day in week.values())
                 
-                self.tableWidget.setItem(current_row, 0, QTableWidgetItem(room_type))
-                self.tableWidget.setItem(current_row, 1, QTableWidgetItem(room['name']))
-                self.tableWidget.setItem(current_row, 2, QTableWidgetItem(room['capacity']))
-                self.tableWidget.setItem(current_row, 3, QTableWidgetItem(room['building']))
-                self.tableWidget.setItem(current_row, 4, QTableWidgetItem(chair_name))  # Используем название кафедры
-                self.tableWidget.setItem(current_row, 5, QTableWidgetItem(str(work_hours_load)))  # Нагрузка
+                self.tableWidget.setItem(current_row, 0, QTableWidgetItem(room['name']))
+                self.tableWidget.setItem(current_row, 1, QTableWidgetItem(room['capacity']))
+                self.tableWidget.setItem(current_row, 2, QTableWidgetItem(room['building']))
+                self.tableWidget.setItem(current_row, 3, QTableWidgetItem(chair_name))  # Используем название кафедры
+                self.tableWidget.setItem(current_row, 4, QTableWidgetItem(str(work_hours_load)))  # Нагрузка
                 current_row += 1
 
         self.tableWidget.resizeColumnsToContents()

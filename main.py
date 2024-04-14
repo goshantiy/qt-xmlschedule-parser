@@ -1,20 +1,21 @@
 import sys
-from PyQt5.QtWidgets import QApplication, QMainWindow, QTreeWidget, QTreeWidgetItem, QComboBox, QVBoxLayout, QWidget, QPushButton, QFileDialog, QHBoxLayout, QLabel
+from PyQt5.QtWidgets import QApplication, QMainWindow, QTreeWidget, QTreeWidgetItem, QComboBox, QVBoxLayout, QWidget, QPushButton, QFileDialog, QHBoxLayout, QLabel, QSpacerItem, QSizePolicy
 import xml.etree.ElementTree as ET
 from xmlprocessing import *
 from loadtable import *
 from roomloadtable import *
 from roomavailabilitychecker import *
+from teacherload import *
 
 class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
-
+        self.setGeometry(100, 100, 150, 150)  # Установка размера и позиции окна
         self.class_processor = {}
         self.teacher_processor = {}
         self.room_processor = {}
         self.chair_processor = {}
-        self.sched_processor ={}
+        self.sched_processor = {}
         self.plan_processor = {}
 
         self.central_widget = QWidget()
@@ -32,27 +33,50 @@ class MainWindow(QMainWindow):
         self.file_selector_layout.addWidget(self.file_selected_label)
         self.file_selector_layout.addWidget(self.file_selector_button)
 
+        # Стилизация
+        self.central_widget.setStyleSheet("""
+            QLabel, QPushButton {
+                font-size: 16px;  /* Увеличиваем шрифт */
+                font-family: Arial, sans-serif;  /* Задаем красивый и читаемый шрифт */
+            }
+            QPushButton {
+                min-height: 30px;  /* Увеличиваем размер кнопок */
+            }
+        """)
+
+
         # Добавляем макет и виджеты для расчета нагрузки
-        self.calc_load_layout = QHBoxLayout()  # Создаем новый горизонтальный макет для элементов управления расчетом нагрузки
+        self.calc_load_layout = QVBoxLayout()  # Создаем новый горизонтальный макет для элементов управления расчетом нагрузки
         self.layout.addLayout(self.calc_load_layout)  # Добавляем новый макет в основной вертикальный макет
 
-        self.calc_load_label = QLabel("Расчет нагрузки кафедр:")  # Метка для кнопки расчета
-        self.calc_load_button = QPushButton("Рассчитать нагрузку")  # Кнопка для инициации расчета
+        # Создаем пространства для центрирования метки
+        left_spacer = QSpacerItem(40, 20, QSizePolicy.Expanding, QSizePolicy.Minimum)
+        right_spacer = QSpacerItem(40, 20, QSizePolicy.Expanding, QSizePolicy.Minimum)
 
+        self.calc_load_label = QLabel("Нагрузка кафедр:")  # Метка для кнопки расчета
+        self.calc_load_button = QPushButton("Нагрузка кафедр")  # Кнопка для инициации расчета
         self.calc_load_button.clicked.connect(self.calculate_and_sort_load_by_department)  # Подключаем событие клика к методу расчета
-        self.calc_room_load_label = QLabel("Расчет аудиторий:")  # Метка для кнопки расчета
-        self.calc_room_load_button = QPushButton("Рассчитать аудитории")  # Кнопка для инициации расчета
+
+        self.calc_room_load_label = QLabel("Нагрузка аудиторий:")  # Метка для кнопки расчета, центрирована
+        self.calc_room_load_button = QPushButton("Нагрузка аудиторий")  # Кнопка для инициации расчета
         self.calc_room_load_button.clicked.connect(self.get_rooms_load)  # Подключаем событие клика к методу расчета
 
         self.calc_room_available_button = QPushButton("Доступность аудитории")  # Кнопка для инициации расчета
         self.calc_room_available_button.clicked.connect(self.get_rooms_availability)  # Подключаем событие клика к методу расчета
         
+        self.calc_load_layout.addSpacerItem(left_spacer)  # Добавляем левый спейсер
         self.calc_load_layout.addWidget(self.calc_load_label)  # Добавляем метку в макет
         self.calc_load_layout.addWidget(self.calc_load_button)  # Добавляем кнопку в макет
         self.calc_load_layout.addWidget(self.calc_room_load_label)  # Добавляем метку в макет
         self.calc_load_layout.addWidget(self.calc_room_load_button)  # Добавляем кнопку в макет
         self.calc_load_layout.addWidget(self.calc_room_available_button)  # Добавляем кнопку в макет
+        self.calc_load_layout.addSpacerItem(right_spacer)  # Добавляем правый спейсер
 
+        self.teacher_load_label = QLabel("Нагрузка преподавателей: ")
+        self.teacher_load_button = QPushButton("Нагрузка преподавателей")
+        self.teacher_load_button.clicked.connect(self.show_teacher_load)
+        self.calc_load_layout.addWidget(self.teacher_load_label)
+        self.calc_load_layout.addWidget(self.teacher_load_button)
 
         self.setWindowTitle("XML Viewer")
         self.filename = ""
@@ -74,6 +98,20 @@ class MainWindow(QMainWindow):
         self.chair_processor = ChairProcessor(tree).parse_chairs()
         self.sched_processor = SchedProcessor(tree).parse_scheds()
         self.plan_processor = PlanProcessor(tree).parse_plans()
+
+    def show_teacher_load(self):
+        teacher_load = {}
+        for teacher_id, teacher_data in self.teacher_processor.items():
+            work_hours = sum(day['hours'] for day in teacher_data['work_hours'])
+            total_hours = work_hours + int(teacher_data['method_days'])
+            name_parts = [part for part in [teacher_data['surname'], teacher_data['first_name'], teacher_data['second_name']] if part]
+            full_name = ' '.join(name_parts)
+            teacher_load[teacher_id] = {
+                'total_hours': total_hours,
+                'name': full_name
+            }
+        self.teacher_load_form = TeacherLoadForm(teacher_load)
+        self.teacher_load_form.show()
 
     def calculate_and_sort_load_by_department(self):
         # Подсчет рабочих часов для каждого преподавателя

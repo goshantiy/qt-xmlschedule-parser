@@ -1,6 +1,9 @@
 import os
+import sys
 import pandas as pd
 from PyQt5.QtWidgets import QApplication, QWidget, QTableWidget, QTableWidgetItem, QVBoxLayout, QPushButton
+from PyQt5.QtCore import Qt
+
 
 class LoadTable(QWidget):
     def __init__(self, department_load):
@@ -32,26 +35,52 @@ class LoadTable(QWidget):
     def createTable(self):
         self.tableWidget = QTableWidget()
 
-        # Установка количества колонок
-        self.tableWidget.setColumnCount(2)
+        # Определяем максимальное количество преподавателей в отделениях
+        max_teachers = max(len(loads) for loads in self.department_load.values())
 
-        # Установка заголовков таблицы
-        self.tableWidget.setHorizontalHeaderLabels(['Кафедра', 'Нагрузка'])
+        # Устанавливаем количество столбцов (2 для названий + 2 для каждого преподавателя)
+        self.tableWidget.setColumnCount(2 + 2 * max_teachers)
+
+        # Устанавливаем заголовки таблицы
+        headers = ['Кафедра', 'Количество преподавателей']
+        for i in range(max_teachers):
+            headers.extend([f"Преподаватель {i+1}", f"Часы {i+1}"])
+        self.tableWidget.setHorizontalHeaderLabels(headers)
 
         # Установка количества строк
         self.tableWidget.setRowCount(len(self.department_load))
 
-        # Заполнение таблицы элементами
-        for i, (department, load) in enumerate(self.department_load.items()):
+        # Заполнение таблицы
+        for i, (department, loads) in enumerate(self.department_load.items()):
             self.tableWidget.setItem(i, 0, QTableWidgetItem(department))
-            self.tableWidget.setItem(i, 1, QTableWidgetItem(str(load)))
+            self.tableWidget.setItem(i, 1, QTableWidgetItem(str(len(loads))))
+
+            for j, load in enumerate(loads):
+                col_index = 2 + 2 * j  # Находим начальный индекс столбца для текущего преподавателя
+                self.tableWidget.setItem(i, col_index, QTableWidgetItem(load['teacher_name']))
+                self.tableWidget.setItem(i, col_index + 1, QTableWidgetItem(str(load['hours'])))
 
         self.tableWidget.resizeColumnsToContents()
+        self.tableWidget.horizontalHeader().setStretchLastSection(True)  # Растягивание последней колонки для заполнения пространства
+
+
     def export_to_excel(self):
-        df = pd.DataFrame(list(self.department_load.items()), columns=['Кафедра', 'Нагрузка'])
+        # Создание DataFrame из словаря
+        data = []
+        for department, loads in self.department_load.items():
+            for load in loads:
+                data.append([department, f"{load['teacher_name']} ({load['hours']} часов)"])
+
+        df = pd.DataFrame(data, columns=['Кафедра', 'Нагрузка'])
+
+        # Имя файла
         filename = 'нагрузка_по_кафедрам.xlsx'
+        
+        # Экспорт в Excel
         df.to_excel(filename, index=False, engine='openpyxl')
         print("Данные успешно экспортированы в Excel")
+        
+        # Попытка открыть файл
         try:
             if os.name == 'nt':  # Для Windows
                 os.startfile(filename)
@@ -60,3 +89,4 @@ class LoadTable(QWidget):
                 os.system(opener + ' ' + filename)
         except Exception as e:
             print(f"Не удалось открыть файл: {e}")
+

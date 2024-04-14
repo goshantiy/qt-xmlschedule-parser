@@ -73,7 +73,7 @@ class RoomProcessor(XMLProcessor):
         self.rooms = self.parse_rooms()
 
     def get_rooms(self):
-        return self.get_elements("./room")
+        return self.get_elements("./rooms/room")
 
     def parse_rooms(self):
         rooms_dict = {}
@@ -92,6 +92,7 @@ class RoomProcessor(XMLProcessor):
                 'work_hours': work_hours
             }
         return rooms_dict
+
 
     def parse_work_hours(self, work_hours_element):
         work_hours = {}
@@ -113,7 +114,7 @@ class ChairProcessor(XMLProcessor):
         self.chairs = self.parse_chairs()
 
     def get_chairs(self):
-        return self.get_elements("./chair")
+        return self.get_elements("./chairs/chair")
 
     def parse_chairs(self):
         chairs_dict = {}
@@ -121,7 +122,7 @@ class ChairProcessor(XMLProcessor):
             chair_id = self.get_element_text(chair, 'id')
             short_name = self.get_element_text(chair, 'short_name')
             full_name = self.get_element_text(chair, 'full_name')
-            chairs_dict[chair_id] = {
+            chairs_dict[int(chair_id)] = {
                 'short_name': short_name,
                 'full_name': full_name
             }
@@ -138,7 +139,7 @@ class TeacherProcessor(XMLProcessor):
         self.teachers = self.parse_teachers()
 
     def get_teachers(self):
-        return self.get_elements("./teacher")
+        return self.get_elements("./teachers/teacher")
 
     def parse_teachers(self):
         teachers_dict = {}
@@ -146,24 +147,31 @@ class TeacherProcessor(XMLProcessor):
             teacher_id = self.get_element_text(teacher, 'person/id')
             surname = self.get_element_text(teacher, 'person/surname')
             first_name = self.get_element_text(teacher, 'person/first_name')
+            second_name = self.get_element_text(teacher, 'person/second_name')
             chair_id = self.get_element_text(teacher, 'chair_id')
             work_hours = self.parse_work_hours(teacher.find('work_hours'))
+            method_days = self.get_element_text(teacher, 'method_days')
             teachers_dict[teacher_id] = {
                 'surname': surname,
                 'first_name': first_name,
-                'chair_id': chair_id
+                'second_name': second_name,
+                'chair_id': chair_id,
+                'work_hours': work_hours,
+                'method_days': method_days
             }
         return teachers_dict
     
     def parse_work_hours(self, work_hours_element):
-        total_hours = 0
+        weekly_hours = []  # Массив для хранения информации о часах работы в каждый день недели
         for week in work_hours_element:
             for day in week:
                 hours = int(day.text)
                 # Подсчет количества '1' в двоичном представлении часов
-                total_hours += bin(hours).count('1')
-        return total_hours
-
+                daily_hours = bin(hours).count('1')
+                day_of_week = int(day.attrib['i'])  # Получение порядкового номера дня недели
+                weekly_hours.append({'day_of_week': day_of_week, 'hours': daily_hours})
+        return weekly_hours
+    
     def get_names(self):
         return [f"{teacher['surname']} {teacher['first_name']}" for teacher in self.teachers.values()]
 
