@@ -6,6 +6,7 @@ from loadtable import *
 from roomloadtable import *
 from roomavailabilitychecker import *
 from teacherload import *
+from efficiency import *
 
 class MainWindow(QMainWindow):
     def __init__(self):
@@ -78,6 +79,16 @@ class MainWindow(QMainWindow):
         self.calc_load_layout.addWidget(self.teacher_load_label)
         self.calc_load_layout.addWidget(self.teacher_load_button)
 
+        self.eff_group_button = QPushButton("Эффективность расписания группы")
+        self.eff_teacher_button = QPushButton("Эффективность расписания преподавателей")
+
+        self.eff_group_button.clicked.connect(self.open_group_eff_form)
+        self.eff_teacher_button.clicked.connect(self.open_teacher_eff_form)
+
+        self.layout.addWidget(self.eff_group_button)
+        self.layout.addWidget(self.eff_teacher_button)
+
+
         self.setWindowTitle("XML Viewer")
         self.filename = ""
 
@@ -87,6 +98,26 @@ class MainWindow(QMainWindow):
         if self.filename:
             self.file_selected_label.setText(f"Выбранный файл: {self.filename}")
             self.parse_file()  
+
+    def open_group_eff_form(self):
+        group_items = ["Группа 1", "Группа 2", "Группа 3"]  # Пример данных
+        self.group_eff_form = EfficiencyForm(group_items, "Эффективность расписания группы")
+        self.group_eff_form.show()
+
+    def open_teacher_eff_form(self):
+        teacher_items = []
+        for teacher_data in self.teacher_processor.values():
+            # Собираем части имени, пропуская пустые значения
+            name_parts = [part for part in [teacher_data['surname'], teacher_data['first_name'], teacher_data['second_name']] if part]
+            # Объединяем части в полное имя
+            full_name = ' '.join(name_parts)
+            teacher_items.append(full_name)
+
+        # Создаем и показываем форму с данными преподавателей
+        self.teacher_eff_form = EfficiencyForm(teacher_items, "Эффективность расписания преподавателей")
+        self.teacher_eff_form.show()
+
+
             
     def parse_file(self):
         # Инициализация процессоров с содержимым файла
